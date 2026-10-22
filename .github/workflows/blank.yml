@@ -1,0 +1,42 @@
+name: Secure Asset Generation Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  run-generation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Generation Libraries
+        run: pip install openai
+
+      # The key is securely passed only into the runner container memory for this single step
+      - name: Execute Generation Pipeline
+        env:
+          OPENAI_API_KEY: ${{ secrets.MY_OPENAI_API_SECRET }}
+        run: python generate.py
+
+      # This removes the generator script from the production build directory so it isn't deployed
+      - name: Clean Up Workspace Generator Script
+        run: rm generate.py
+
+      - name: Commit and Push Generated Assets
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@://github.com"
+          git add index.html script.js
+          git rm generate.py || echo "Script already detached"
+          git commit -m "Deploy fresh AI-generated assets and clean project space" || echo "No asset modifications detected"
+          git push
